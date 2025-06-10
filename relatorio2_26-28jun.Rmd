@@ -1,0 +1,765 @@
+---
+title: "Relatório 2"
+author: "Gabriela D'Agostini Contreiras Rodrigues e Pietra Giulianna de Andrade Cretella"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  pdf_document:
+    latex_engine: xelatex  # ou lualatex, se preferir
+    includes:
+      in_header: preamble.tex
+  html_document:
+    df_print: paged
+fontsize: 12pt
+geometry: "left=3cm, right=2cm, top=3cm, bottom=2cm"
+lang: "pt-BR"
+linestretch: 1.25
+classoption: "oneside"
+editor_options:
+  chunk_output_type: console
+---
+
+
+<!-- Nessa atividade trabalharemos alguns tópicos sobre análise estatística. Na última atividade vimos uma medida não paramétrica de correlação (Spearman). -->
+
+
+
+<!-- Prepare o ambiente antes de iniciarmos as atividades. Limpe o ambiente e instale os pacotes. -->
+
+```{r, Limpeza, message=FALSE, include=FALSE, echo=FALSE, error=FALSE}
+
+rm(list=ls())
+
+```
+O processo de manipulação dos dados iniciou com a limpeza e preparação do ambiente, carregando os pacotes necessários usando o pacote *pacman*  e importação  da base com a função *rio*. 
+
+# Questão 1 (26 junho)
+
+
+* **A) Identifique os *outliers* das variáveis de interesse (ESEB e LAPOP)**
+
+<!-- Recomendo o uso do pacote *outliers*. Atenção a distribuição da variável. Se não for uma distribuição normal, precisamos usar um teste não-paramétrico. Procure um teste de outlier não-paramétrico (Grubbs test?). Aqui tem um material para começar: https://statsandr.com/blog/outliers-detection-in-r/#grubbss-test.  -->
+
+
+Outliers são valores que estão muito distantes da maioria dos dados em uma distribuição numérica. Eles são geralmente identificados em variáveis quantitativas, que têm uma escala numérica, como altura, peso ou renda. Para variáveis qualitativas (ou categóricas), como "casamento", "aborto", "adoção" ou respostas a perguntas de sim/não, o conceito de "distância" não se aplica da mesma forma.
+
+As variáveis qualitativas descrevem categorias ou atributos que não têm uma ordem ou escala numérica. Como não há uma escala contínua, não há um "valor extremo" que possa ser identificado como outlier. Por exemplo, a categoria "sim" em uma pergunta de sim/não não pode ser considerada extrema em relação à categoria "não".
+
+Além disso, as medidas usadas para identificar outliers em dados quantitativos, como a média e o desvio padrão, não são aplicáveis a dados qualitativos. Em dados qualitativos, trabalhamos com contagens de categorias, não com distribuições contínuas. Uma categoria que ocorre com pouca frequência não é necessariamente um outlier, mas apenas uma categoria menos comum.
+
+
+
+```{r pacotes, message=FALSE, include=FALSE, echo=FALSE, error=FALSE}
+#Passo 1: Importar as bases 
+
+pacman::p_load("here", "rio", "tidyverse","janitor", "dplyr", "survey", "srvyr", "ggplot2", "outliers", "stats", "naniar", "fastDummies")
+
+```
+
+```{r Importação das bases, echo=FALSE, error= FALSE, message=FALSE, warning=FALSE, include=FALSE} 
+
+eseb <- rio::import("dados/eseb22.sav") |> janitor::clean_names()
+#clean_names é uma função do pacote janitor que padroniza a escrita da variáveis 
+
+lapop <- rio::import( "dados/lapop-2007-2023.zip") %>% filter(year == 2023) %>% rename(peso = wt) #Filtrando os dados no ano de 2023
+lapop |> janitor::clean_names()
+
+```
+
+**Seleção de variáveis utilizadas no "Relatório 1" como *issue positions* da dimensão liberal/fundamentalista**
+
+1. Casamento homoafetivo 
+2. Adoção por casais de minorias de gênero
+3. Aborto
+
+```{r Seleção de variáveis, include = FALSE, warning=FALSE, message=FALSE, echo=FALSE}
+# Passo 2: Selecionar variáveis usando a função "select"
+
+#Base eseb dimensão liberal fundamentalista
+
+eseb$year <- 2022
+
+beseb <- eseb %>% select(year,q31_2, q31_3, q31_7,d02) %>%
+  rename(genero = d02)
+
+
+
+#Base lapop dimensão liberal fundamentalista
+
+blapop <- lapop %>% select(year,d6, d7b, w14a,q1tc_r)  %>%
+  rename(genero = q1tc_r)
+
+```
+
+
+
+* **B) Identifique questões semelhantes em duas bases e realize um teste de diferença de médias (para amostras independentes).**
+
+Testes de diferença de média são usados para comparar as médias de duas ou mais amostras e verificar se há uma diferença significativa entre elas. Esses testes são apropriados para variáveis quantitativas, que têm valores numéricos contínuos e permitem o cálculo de uma média.
+Por outro lado, variáveis qualitativas (ou categóricas) não possuem valores numéricos que possam ser somados ou divididos para calcular uma média. Como não há uma escala numérica, não podemos calcular uma média ou comparar médias entre grupos.
+Para variáveis qualitativas, como "casamento", "aborto", "adoção" ou respostas a perguntas de sim/não, fizemos uma análise visual através de gráficos de distribuição de respostas que permitem uma compreensão rápida e intuitiva de como as respostas estão distribuídas entre as categorias.
+
+
+<!-- Tratei (renomeando e agrupando) a variável do ESEB Q31_2: casamento -->
+```{r, echo=FALSE, message=FALSE, warning=FALSE, error =FALSE}
+
+# class(beseb$q31_2)
+
+
+# beseb |> janitor::tabyl(q31_2)
+
+
+beseb <- beseb %>% 
+  mutate(casamento = case_when(
+  q31_2 == 1~ "A Favor",
+  q31_2 == 2 ~ "Contra",
+  q31_2 == 3~"Depende",
+  q31_2 > 3~ NA
+)) %>%
+  mutate(casamento=factor(casamento,levels=c("A Favor", "Depende", "Contra")))
+
+
+# # Substituir 97 e 98 por NA em q31_2
+# beseb$q31_2 <- ifelse(beseb$q31_2 %in% c(97, 98), NA, beseb$q31_2)
+# 
+# beseb |> janitor::tabyl(q31_2)
+# 
+# # Converter q31_2 para fator com níveis e rótulos corretos
+# beseb$q31_2 <- factor(beseb$q31_2, 
+#                       levels = c("1", "3", "2"),
+#                       labels = c("A Favor", "Depende", "Contra"))
+
+
+
+
+# beseb |> janitor::tabyl(casamento)
+
+# gráfico de barra com  NA
+# ggplot(data = beseb, aes(x = casamento)) +
+#   geom_bar(fill = "steelblue") +
+#   theme_minimal() +
+#   labs(x = "Resposta", y = "Contagem", title = "Distribuição de Respostas para casamento - ESEB")
+
+
+# beseb |> janitor::tabyl(casamento)
+
+
+```
+
+<!-- **Gráfico de Distribuição de Respostas - "Casamento - ESEB"** -->
+```{r q312, message=FALSE, warning=FALSE, error =FALSE, fig.align='center', echo=FALSE, fig.cap='FONTE: ESEB, 2022'}
+
+# gráfico de barra com  NA
+ggplot(data = beseb, aes(x = casamento)) +
+  geom_bar(fill = "steelblue") +
+  theme_minimal() +
+  labs(x = "Resposta", y = "Contagem", title = "Distribuição de Respostas para casamento - ESEB")
+
+
+```
+
+
+
+<!-- Tratei (renomeando e agrupando) a variável LAPOP d6: casamento -->
+```{r, message=FALSE, echo=FALSE, warning=FALSE, error =FALSE}
+
+# class(blapop$d6)
+
+
+# blapop |> janitor::tabyl(d6)
+
+
+#blapop$d6<- ifelse(blapop$d6%in% c(888888, 988888), NA, blapop$d6)
+
+# blapop$d6 <- factor(blapop$d6, 
+#                       levels = c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10"),
+#                       labels = c("Desaprova Fortemente",
+#                                  "Desaprova Fortemente",
+#                                  "Desaprova Fortemente",
+#                                  "Desaprova Fortemente",
+#                                  "Depende",
+#                                  "Depende",
+#                                  "Aprova fortemente",
+#                                  "Aprova fortemente",
+#                                  "Aprova fortemente",
+#                                  "Aprova fortemente"))
+
+# mesma coisa
+
+#criei outra varíavel para não mexer na base original d6
+blapop <- blapop %>% 
+  mutate(casamento = case_when(
+  d6 <= 4~"Desaprova Fortemente",
+  d6 >= 7~ "Aprova Fortemente", 
+  is.na(d6)~"NA",
+  TRUE~"Depende"
+)) %>%
+  mutate(casamento=factor(casamento,levels=c("Desaprova Fortemente", "Depende", "Aprova Fortemente")))
+
+# # grafico com  NA
+# blapop %>%
+#   ggplot(aes(x = casamento)) +
+#   geom_bar(fill = "steelblue") +
+#   theme_minimal() +
+#   labs(x = "Resposta", y = "Contagem", title = "Distribuição de Respostas para Casamento - LAPOP")
+
+# summary(lm(d7b~d6_2, data = blapop, na.action = na.omit)) #regressão
+
+# blapop %>% mutate(d6_3 = case_when(
+#   d6_2 == "NA" ~ NA_character_,
+#   TRUE ~ d6_3
+# )) %>%
+#   drop_na() %>% 
+#   ggplot(aes(x = d6_2)) +
+#   geom_bar(fill = "steelblue") +
+#   theme_minimal() +
+#   labs(x = "Resposta", y = "Contagem", title = "Distribuição de Respostas para d6")
+#   
+
+
+# blapop |> janitor::tabyl(casamento)
+
+
+
+```
+
+
+<!-- **Gráfico de Distribuição de Respostas - "Casamento - LAPOP"** -->
+```{r d6, message=FALSE, warning=FALSE, error =FALSE, fig.align='center', echo=FALSE, fig.cap= 'FONTE: LAPOP, 2023.'}
+
+blapop %>%
+  ggplot(aes(x = casamento)) +
+  geom_bar(fill = "steelblue") +
+  theme_minimal() +
+  labs(x = "Resposta", y = "Contagem", title = "Distribuição de Respostas para Casamento - LAPOP")
+
+
+```
+
+
+
+<!-- Tratei (renomeando e agrupando) a variável do ESEB Q31_3: adoção -->
+
+```{r, message=FALSE, echo=FALSE, warning=FALSE, error =FALSE}
+
+
+# class(beseb$q31_3)
+
+
+# beseb |> janitor::tabyl(q31_3)
+
+beseb <- beseb %>% 
+  mutate(adocao = case_when(
+  q31_3 == 1~ "A Favor",
+  q31_3 == 2 ~ "Contra",
+  q31_3 == 3~"Depende",
+  q31_3 > 3~ NA
+)) %>%
+  mutate(adocao=factor(adocao,levels=c("A Favor", "Depende", "Contra")))
+
+
+
+
+
+# # Substituir 97 e 98 por NA em q31_2
+# beseb$q31_3 <- ifelse(beseb$q31_3
+#                       %in% c(97, 98), NA, beseb$q31_3)
+# 
+# beseb |> janitor::tabyl(q31_3)
+# 
+# # Converter q31_2 para fator com níveis e rótulos corretos
+# beseb$q31_3 <- factor(beseb$q31_3, 
+#                       levels = c("1", "3", "2"),
+#                       labels = c("A Favor", "Depende", "Contra"))
+
+# beseb |> janitor::tabyl(adocao)
+
+
+
+# #  ggplot, incluindo NA
+# ggplot(data = beseb, aes(x = adocao)) +
+#   geom_bar(fill = "steelblue") +
+#   theme_minimal() +
+#   labs(x = "Resposta", y = "Contagem", title = "Distribuição de Respostas para Adoção - ESEB")
+
+
+# beseb |> janitor::tabyl(adocao)
+
+
+
+
+```
+
+<!-- **Gráfico de Distribuição de Respostas - "Adoção - ESEB"** -->
+```{r q313, message=FALSE, warning=FALSE, error =FALSE, fig.align='center', echo=FALSE, fig.cap='FONTE: ESEB, 2022'}
+
+
+#  ggplot, incluindo NA
+ggplot(data = beseb, aes(x = adocao)) +
+  geom_bar(fill = "steelblue") +
+  theme_minimal() +
+  labs(x = "Resposta", y = "Contagem", title = "Distribuição de Respostas para Adoção - ESEB")
+
+
+
+```
+
+
+
+<!-- Tratei (renomeando e agrupando) a variável LAPOP d7b: adoção -->
+
+```{r, echo=FALSE, message=FALSE, echo=FALSE}
+
+# class(blapop$d7b)
+
+
+# blapop |> janitor::tabyl(d7b)
+
+#criei outra varíavel para não mexer na base original d7b
+blapop <- blapop %>% 
+  mutate(adocao = case_when(
+  d7b <= 4~"Desaprova Fortemente",
+  d7b >= 7~ "Aprova Fortemente", 
+  is.na(d7b)~"NA",
+  TRUE~"Depende"
+)) %>%
+  mutate(adocao=factor(adocao,levels=c("Desaprova Fortemente", "Depende", "Aprova Fortemente")))
+
+
+# # ggplot, incluindo NA
+# ggplot(data = blapop, aes(x = adocao)) +
+#   geom_bar(fill = "steelblue") +
+#   theme_minimal() +
+#   labs(x = "Resposta", y = "Contagem", title = "Distribuição de Respostas para Adoção - LAPOP")
+
+
+# blapop |> janitor::tabyl(adocao)
+
+
+
+```
+
+
+
+<!-- **Gráfico de Distribuição de Respostas - "Adoção - LAPOP"** -->
+```{r d7b, warning=FALSE, message=FALSE, echo=FALSE, fig.align='center', fig.cap= 'FONTE: base LAPOP, 2023.'}
+
+# ggplot, incluindo NA
+ggplot(data = blapop, aes(x = adocao)) +
+  geom_bar(fill = "steelblue") +
+  theme_minimal() +
+  labs(x = "Resposta", y = "Contagem", title = "Distribuição de Respostas para Adoção - LAPOP")
+
+```
+
+
+
+Após observar que a distribuição das respostas não segue uma distribuição normal, criamos tabelas de frequência para as variáveis "casamento" e "adoção" para ESEB e LAPOP. Essas tabelas não apenas proporcionam uma compreensão mais clara da distribuição dos dados, mas também garantem a realização de análises estatísticas robustas e significativas. Em seguida, conduzi o teste não paramétrico de Wilcoxon Signed-Rank para amostras independentes. Os resultados dos testes indicaram a rejeição da hipótese nula (H$0$, $p<0,05$), sugerindo evidências estatísticas significativas que sustentam a conclusão de que há diferenças significativas na distribuição das opiniões sobre casamento homoafetivo e adoção ao longo dos últimos anos nas duas bases.
+
+
+<!-- Atenção a distribuição das variáveis. Se for uma distribuição normal, aplicar o teste T-Student. Caso contrário, aplicar o teste Wilcoxon. Veja  mais aqui: https://statsandr.com/blog/wilcoxon-test-in-r-how-to-compare-2-groups-under-the-non-normality-assumption/ -->
+
+<!-- ESEB q31_2: criando um df novo com year (2022) e renomeando - tabela de frequencia (para poder realizar o teste) -->
+
+```{r freqeseb ,include=FALSE, message=FALSE, warning=FALSE, echo = FALSE}
+
+beseb2 <- beseb %>% 
+  select(year,casamento)
+
+
+#frequência
+tabela_freq_casamento_eseb <- beseb %>%
+  tabyl(casamento) 
+
+
+```
+
+
+<!-- LAPOP d6: já filtrado por year (2023) e renomeando - tabela de frequencia (para poder realizar o teste) -->
+
+```{r freqlapop, include=FALSE, message=FALSE, warning=FALSE, echo = FALSE }
+
+blapop2 <- blapop %>% 
+  select(year,casamento)
+
+#frequencia
+tabela_freq_casamento_lapop <- blapop %>%
+  tabyl(casamento) 
+print(tabela_freq_casamento_lapop)
+
+
+```
+
+<!-- juntando os df das variáveis de casamento de cada base e rodando o teste - Casamento -->
+```{r wilcox ,include=FALSE, message=FALSE, warning=FALSE, echo = FALSE}
+
+
+combined_df <-  bind_rows(blapop2, beseb2)
+#print(combined_df)
+
+
+test_result <- wilcox.test(as.numeric(casamento) ~ year, data = combined_df, exact = FALSE)
+
+print(test_result)
+
+
+# Wilcoxon rank sum test with continuity
+# 	correction
+# 
+# data:  as.numeric(casamento) by year
+# W = 2766432, p-value < 2.2e-16
+# alternative hypothesis: true location shift is not equal to 0
+
+```
+
+
+<!-- ESEB q31_3: criando um df novo com year (2022) e renomeando - tabela de frequencia (para poder realizar o teste) -->
+```{r, include=FALSE, message=FALSE, warning=FALSE, echo = FALSE}
+
+
+beseb3 <- beseb %>% 
+  select(year, adocao)
+
+
+#frequencia
+tabela_freq_adocao <- beseb %>%
+  tabyl(adocao) 
+print(tabela_freq_adocao)
+knitr::kable(tabela_freq_adocao)
+
+
+```
+
+<!-- LAPOP d7b: já filtrado por year (2023) e renomeando - tabela de frequencia (para poder realizar o teste) -->
+```{r, include=FALSE, message=FALSE, warning=FALSE, echo = FALSE}
+
+
+blapop3 <- blapop %>% 
+  select(year,adocao)
+
+
+tabela_freq_adocao <- blapop %>%
+  tabyl(adocao) 
+print(tabela_freq_adocao)
+knitr::kable(tabela_freq_adocao)
+
+```
+
+
+<!-- juntando os df das variáveis de adoção de cada base e rodando o teste - Adoção  -->
+```{r, include=FALSE, message=FALSE, warning=FALSE, echo = FALSE}
+
+
+combined_df2 <-  bind_rows(blapop3, beseb3)
+#print(combined_df2)
+
+
+test_result <- wilcox.test(as.numeric(adocao) ~ year , data = combined_df2, exact = FALSE)
+
+# print(test_result)
+
+# Wilcoxon rank sum test with continuity correction
+# 
+# data:  as.numeric(adoção) by year
+# W = 1387572, p-value < 2.2e-16
+# alternative hypothesis: true location shift is not equal to 0
+
+```
+
+
+\newpage
+
+# Questão 2 (27 junho)
+
+**Analise e proponha soluções para os casos ausentes (NAs).**
+
+Utilizando o pacote *naniar*, verificamos a presença de valores ausentes (NA) nas bases de dados "beseb" e "blapop". A alta proporção de valores ausentes na variáveis pode ter várias razões possíveis: Não resposta ou omissão pelos respondentes: Algumas pessoas podem optar por não responder perguntas específicas, especialmente se consideram o tema sensível ou controverso. Problemas na coleta de dados: Erros durante a coleta de dados podem levar à ausência de informações. Isso pode ocorrer por falhas na instrução aos entrevistadores, problemas técnicos na coleta de dados ou até mesmo pela natureza complexa da pergunta. Desconhecimento ou falta de informação: Os respondentes podem não estar familiarizados com o conceito de “cotas” ou não ter informações suficientes para responder adequadamente. A alta proporção de valores ausentes pode comprometer a validade e a robustez das análises que utilizam essas variáveis.
+
+<!-- NA com valores 98 e 97, entra como se fosse valores reais  -->
+
+<!-- Recomendo o pacote *naniar* (https://naniar.njtierney.com/). -->
+
+```{r, visNA, message=FALSE, warning=FALSE, error =FALSE, fig.align='center', echo=FALSE}
+
+# Visualizar valores ausentes nas bases de dados
+miss_var_summary(beseb) -> nabeseb
+miss_var_summary(blapop) -> nablapop
+
+knitr::kable(nabeseb)
+knitr::kable(nablapop)
+
+# Visualizar a proporção de valores ausentes
+gg_miss_var(beseb) + ggtitle("Proporção de Valores Ausentes na Base beseb")+
+  xlab("Variáveis") +
+  ylab("NAs")
+
+gg_miss_var(blapop)+ ggtitle("Proporção de Valores Ausentes na Base blapop")+
+   xlab("Variáveis") +
+  ylab("NAs")
+
+```
+
+
+<!-- Only God saves -->
+
+<!-- ```{r} -->
+<!-- p_value <- 3 -->
+<!-- ``` -->
+
+
+* **Teste Qui-quadrado de um critério**
+
+Para investigar a associação entre diferentes opiniões sobre o casamento e adoção separadamente, utilizei o teste de proporção *prop.test*.
+Primeiro, transformei a variável qualitativa "casamento" e em variáveis dummy usando o pacote *fastDummies*. Isso criou variáveis binárias (0 ou 1) para cada categoria da variável original. 
+Utilizei a função *table* para criar uma tabela de contingência que mostra a frequência conjunta das respostas nas categorias específicas de interesse da variável "casamento", sendo elas a relação entre "A favor"- "Contra" e "A favor" - "Depende" no conjunto de dados  ESEB. e "Desaprova Fortemente" - "Aprova Fortemente" e "Aprova Fortemente"- "Depende" no conjunto de dados  LAPOP. 
+Com base nos resultados do teste de proporção indica que há evidências estatísticas suficientes para rejeitar a hipótese nula (H$0$, $p<0,05$) de que as proporções são iguais, sugerindo uma associação significativa entre as categorias comparadas das variáveis "casamento" e "adoção". 
+
+Para investigar possíveis diferenças na distribuição das variáveis "adocao" e "casamento" entre duas bases de dados distintas, ESEB e LAPOP, utilizei também utilizei o teste $\chi^2$. Primeiramente, calculei as frequências de cada categoria da variável "adocao" em cada amostra. Combinei então essas tabelas de contingência em uma única tabela para análise comparativa. Após preparar a tabela combinada, realizei o teste  $\chi^2$ para determinar se as diferenças nas frequências observadas são estatisticamente significativas. 
+O valor p extremamente baixo $p < 0,05$  indica que há evidências estatísticas suficientes para rejeitar a hipótese nula (H$0$, $p<0,05$) de independência entre as amostras para as variáveis "adocao" e "casamento".
+
+<!-- Testar a preferência dos entrevistados por alguma categoria da variável de interesse. Exemplo: As pessoas tem preferências distintas quando perguntadas sobre casamento homoafetivo? Ver  cap. 9 (p. 293) -->
+
+
+<!-- Dummies - binarizando a categoria casamento dentro de uma mesma variável "casamento" -ESEB -->
+
+```{r, message=FALSE,include=FALSE, warning=FALSE, error =FALSE, echo=FALSE}
+
+dados_dummies <- fastDummies::dummy_cols(beseb2, select_columns = "casamento")
+dados_dummies <- dados_dummies %>% janitor::clean_names()
+dados_dummies <- dados_dummies %>%
+  rename(casamento_favor = casamento_a_favor)
+
+# head(dados_dummies)
+
+prop.test(table(dados_dummies$casamento_favor, dados_dummies$casamento_contra))
+# p-value < 2.2e-16 (estatisticamente significante)
+
+prop.test(table(dados_dummies$casamento_favor,dados_dummies$casamento_depende))
+# p-value < 2.2e-16 (estatisticamente significante)
+
+# prop.test(table(dados_dummies$casamento_depende,dados_dummies$casamento_na))
+
+
+```
+
+<!-- Dummies - binarizando a categoria casamento dentro de uma mesma variável "adoção" - ESEB -->
+
+```{r, message=FALSE,include=FALSE, warning=FALSE, error =FALSE, echo=FALSE}
+
+dados_dummies2 <- fastDummies::dummy_cols(beseb3, select_columns = "adocao")
+dados_dummies2 <- dados_dummies2 %>% janitor::clean_names()
+dados_dummies2 <- dados_dummies2 %>%
+  rename(adocao_favor = adocao_a_favor)
+# head(dados_dummies2)
+
+prop.test(table(dados_dummies2$adocao_favor,dados_dummies2$adocao_contra))
+# p-value < 2.2e-16 (estatisticamente significante)
+
+prop.test(table(dados_dummies2$adocao_favor,dados_dummies2$adocao_depende))
+# p-value < 2.2e-16 (estatisticamente significante)
+
+# prop.test(table(dados_dummies$casamento_depende,dados_dummies$casamento_na))
+
+```
+
+<!-- Dummies - binarizando a categoria casamento dentro de uma mesma variável "casamento" - LAPOP  -->
+
+```{r, message=FALSE, include=FALSE,warning=FALSE, error =FALSE, fig.align='center', echo=FALSE}
+
+
+dados_dummies <- fastDummies::dummy_cols(blapop2, select_columns = "casamento")
+dados_dummies <- dados_dummies %>% janitor::clean_names()
+# head(dados_dummies)
+
+prop.test(table(dados_dummies$casamento_desaprova_fortemente,dados_dummies$casamento_aprova_fortemente))
+# p-value < 2.2e-16 (estatisticamente significante)
+
+prop.test(table(dados_dummies$casamento_aprova_fortemente,dados_dummies$casamento_depende))
+# p-value < 2.2e-16 (estatisticamente significante)
+
+# prop.test(table(dados_dummies$casamento_depende,dados_dummies$casamento_na))
+
+
+```
+
+
+<!-- Dummies - binarizando a categoria casamento dentro de uma mesma variável "adoção" - LAPOP  -->
+```{r, message=FALSE, include=FALSE,warning=FALSE, error =FALSE,  echo=FALSE}
+
+
+dados_dummies <- fastDummies::dummy_cols(blapop3, select_columns = "adocao")
+dados_dummies <- dados_dummies %>% janitor::clean_names()
+# head(dados_dummies)
+
+prop.test(table(dados_dummies$adocao_desaprova_fortemente,dados_dummies$adocao_aprova_fortemente))
+# p-value < 2.2e-16 (estatisticamente significante)
+
+prop.test(table(dados_dummies$adocao_aprova_fortemente,dados_dummies$adocao_depende))
+# p-value < 2.2e-16 (estatisticamente significante)
+
+
+```
+
+
+<!-- chi² casamento comparação de uma mesma variável "casamento" de eseb e lapop  -->
+```{r, message=FALSE, warning=FALSE, error =FALSE, fig.align='center', echo=FALSE}
+
+# Frequências de cada categoria em amostra1
+tabela_amostra1 <- table(beseb2$casamento)
+
+# Frequências de cada categoria em amostra2
+tabela_amostra2 <- table(blapop2$casamento)
+
+
+# Combine as tabelas de contingência
+tabela_combinada <- rbind(tabela_amostra1, tabela_amostra2)
+rownames(tabela_combinada) <- c("Casamento", "Casamento")
+
+# print(tabela_combinada)
+
+
+# Realize o teste qui-quadrado
+teste_qui2 <- chisq.test(tabela_combinada)
+
+# Mostre os resultados
+# print(teste_qui2)
+
+
+# Pearson's Chi-squared test
+# 
+# data:  tabela_combinada
+# X-squared = 121.6, df = 2, p-value < 2.2e-16 (estatisticamente significante)
+
+
+
+
+```
+
+
+<!-- chi² adoção -->
+```{r, message=FALSE, warning=FALSE, error =FALSE, fig.align='center', echo=FALSE}
+
+# Frequências de cada categoria em amostra1
+tabela_amostra1 <- table(beseb3$adocao)
+
+# Frequências de cada categoria em amostra2
+tabela_amostra2 <- table(blapop3$adocao)
+
+
+# Combine as tabelas de contingência
+tabela_combinada <- rbind(tabela_amostra1, tabela_amostra2)
+rownames(tabela_combinada) <- c("Adoção", "Adoção")
+
+# print(tabela_combinada)
+
+# Realize o teste qui-quadrado
+teste_qui2 <- chisq.test(tabela_combinada)
+
+# Mostre os resultados
+# print(teste_qui2)
+
+#Pearson's Chi-squared test
+
+# data:  tabela_combinada
+# X-squared = 273.97, df = 2, p-value < 2.2e-16 (estatisticamente significante)
+
+
+
+```
+
+
+
+* **Teste Qui-quadrado de dois critérios**
+
+Testamos se a preferência do entrevistado sobre casamento homoafetivo e adoção entre casais homoafetivos variam de acordo com o "gênero".
+O resultado indica que há uma associação estatisticamente significativa entre as variáveis "casamento" e "gênero" em ambas as bases, com um valor p muito baixo $p < 0,05$, $p < 0,05$,  indicando que as diferenças nas frequências observadas não são atribuíveis ao acaso. Importante mencionar que o teste da base LAPOP gerou uma mensagem de aviso que pode ser devido à quantidade limitada de casos na categoria "Não se identifica" na variável "gênero". 
+
+
+<!-- Testar a preferência dos entrevistados por alguma categoria da variável de interesse considerando uma característica desses entrevistados (sexo, por exmeplo). Exemplo: Homens e Mulheres temm preferências distintas quando perguntados sobre o aborto? Ver  cap. 9 (p. 293) -->
+
+```{r, Teste3, message=FALSE, warning=FALSE, error =FALSE, fig.align='center', echo=FALSE}
+
+# Padronizar gênero em blapop
+blapop <- blapop %>%
+  mutate(genero = factor(genero, levels = c(1, 2, 3),
+                         labels = c("Masculino", "Feminino", "Não se identifica"),
+                         exclude = NULL))  # Para evitar exclusão de níveis
+
+beseb <- beseb %>%
+  mutate(genero = factor(genero, levels = c(1, 2),
+                         labels = c("Masculino", "Feminino"),
+                         exclude = NULL)) 
+
+
+
+# Calcular as frequências de cada combinação de categoria em beseb
+freq_cas.homo_gen_beseb <- beseb %>% tabyl(casamento, genero)
+
+# Calcular as frequências de cada combinação de categoria em blapop
+freq_cas.homo_gen_blapop <- blapop %>% tabyl(casamento, genero)
+
+
+```
+
+O resultado indica que há uma associação estatisticamente significativa entre as variáveis "casamento" e "gênero" em ambas as bases, com um valor p muito baixo $p < 0,05$, $p < 0,05$,  indicando que as diferenças nas frequências observadas não são atribuíveis ao acaso. Importante mencionar que o teste da base LAPOP gerou uma mensagem de aviso que pode ser devido à quantidade limitada de casos na categoria "Não se identifica" na variável "gênero". 
+
+<!-- Testando para ESEB -->
+
+```{r, Tabelaeseb, message=FALSE, warning=FALSE, error =FALSE, fig.align='center', echo=FALSE}
+
+# Calcular a tabela de contingência para beseb
+contingency_table_beseb <- table(beseb$casamento, beseb$genero)
+
+# Realizar o teste de Qui-quadrado
+chi_square_test_beseb <- chisq.test(contingency_table_beseb)
+
+# Visualizar os resultados
+# print(chi_square_test_beseb)
+
+```
+
+
+<!-- Testando para LAPOP -->
+
+
+```{r Tabelalapop, message=FALSE, warning=FALSE, error =FALSE, fig.align='center', echo=FALSE}
+# Calcular a tabela de contingência para blapop
+contingency_table_blapop <- table(blapop$casamento, blapop$genero)
+
+# Realizar o teste de Qui-quadrado
+chi_square_test_blapop <- chisq.test(contingency_table_blapop)
+
+# Perceba que ele gerou uma mensagem de aviso. Suspeito que seja pela pouca quantidade de casos na categoria Não se ident.
+
+# Visualizar os resultados
+# print(chi_square_test_blapop)
+
+```
+
+
+Por fim, aplicamos um teste de Fisher, para pequenas quantidades.
+Esse valor p extremamente baixo $p < 0,05$ indica que há uma associação estatisticamente significativa entre as variáveis "casamento" e "gênero" A hipótese alternativa de duas caudas sugere que a associação pode ser tanto positiva quanto negativa.
+Esses resultados reforçam a evidência de que as opiniões sobre "casamento" variam significativamente com base na identificação de gênero  utilizando um teste robusto para situações com baixas frequências esperadas.
+
+<!-- Rodando o LAPOP, mas agora um teste de Fisher (que serve para pequenas quantidade) -->
+
+```{r Testefisher, message=FALSE, warning=FALSE, error =FALSE, fig.align='center', echo=FALSE}
+
+# Calcular a tabela de contingência para blapop
+contingency_table_blapop <- table(blapop$casamento, blapop$genero)
+
+# Realizar o teste de Qui-quadrado
+fisher_test_blapop <- fisher.test(contingency_table_blapop)
+
+# Perceba que ele gerou uma mensagem de aviso. Suspeito que seja pela pouca quantidade de casos na categoria Não se ident.
+
+# Visualizar os resultados
+# print(fisher_test_blapop)
+
+```
+
+
+Referência: **Levin, J.; Fox, J. A. Estatística para Ciências Humanas. São Paulo: Pentice Hall, 2004. 9ª edição.** Na biblioteca: [ISBN : 9788581430812](https://pergamum.ufsc.br/acervo/366987)
+
+
+
+

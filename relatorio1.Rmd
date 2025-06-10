@@ -1,0 +1,356 @@
+ ---
+title: "Relatório 1"
+author: "Pietra Giulianna de Andrade Cretella e Gabriela D'Agostini Contreiras Rodrigues"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  pdf_document:
+    latex_engine: xelatex  # ou lualatex, se preferir
+    includes:
+      in_header: preamble.tex
+  html_document:
+    df_print: paged
+fontsize: 12pt
+geometry: "left=3cm, right=2cm, top=3cm, bottom=2cm"
+lang: "pt-BR"
+linestretch: 1.25
+classoption: "oneside"
+editor_options:
+  chunk_output_type: console
+---
+
+
+```{r limpeza, echo = FALSE, warning = FALSE, error = FALSE, include = FALSE}
+rm(list = ls())
+```
+
+**Leitura do artigo "Existem Clivagens no Brasil?"**
+
+<!-- A leitura de vocês deverá focar tanto no debate teórico quanto na seleção das variáveis. Lembrando que é a teoria quem guia a seleção das variáveis. -->
+
+
+O debate de clivagens no estudo de  Moreno (1999 ) nos países da América Latina e as três issues-positions, em especial a terceira dimensão liberal-fundamentalista considera a relação issue-position como sendo a posição do eleitor sobre aspectos políticos como o aborto, casamento homoafetivo e intervenção do estado na economia. Uma leitura proposta pelo autor é que, à medida que os regimes democráticos de alguns países latino-americanos (incluído o Brasil) vão se tornando mais fortes, na passagem da primeira para segunda onda, a clivagem democrática/autoritária estaria, aos poucos, mesclando-se à cultural. Posto isso, a seleção de questões englobam tais variáveis. 
+
+A partir disso, o objetivo se da na análise de possíveis níveis de congruência entre o eleitores e suas elites políticas, indicando assim, como exposto no artigo, o grau de qualidade representativa. Portanto, a  existência de clivagens no eleitorado brasileiro só pode ser confirmada quando há essa congruência.  
+
+A hipótese apresentada no artigo sobre a dimensão liberal-fundamentalista ser possívelmente estável faz parte da análise das variáveis. 
+
+
+```{r Carregamento dos pacotes, include = FALSE, message=FALSE, warning=FALSE}
+#Passo 1: Importar as bases (siga as instruções que dei no curso R; use pacote here e rio)
+
+pacman::p_load("here", "rio", "tidyverse","janitor", "dplyr", "survey", "srvyr", "ggplot2","patchwork", "correlation", "see", "kableExtra", "bookdown")
+library(kableExtra)
+#tinytex::install_tinytex()
+#tinytex::tlmgr_update()
+#tinytex::tlmgr_install("babel")
+#renv::init() # esse comando "fixa" as versões dos pacotes
+#renv::restore() # restaura o ambiente com os pacotes nas devidas versões.
+#renv::snapshot() # capture o estado atual do ambiente 
+```
+
+```{r Importação das bases, echo=FALSE, error= FALSE, message=FALSE, warning=FALSE, include=FALSE} 
+eseb <- rio::import("dados/eseb22.sav") |> janitor::clean_names()
+#clean_names é uma função do pacote janitor que padroniza a escrita da variáveis 
+
+
+lapop <- rio::import( "dados/lapop-2007-2023.sav") %>% filter(year == 2023) %>% rename(peso = wt) #Filtrando os dados no ano de 2023
+lapop |> janitor::clean_names()
+```
+
+
+```{r Seleção de variáveis, include = FALSE, warning=FALSE, message=FALSE, echo=FALSE}
+# Passo 2: Selecionar variáveis usando a função "select"
+
+#Base eseb dimensão liberal fundamentalista
+
+beseb <- eseb %>% select(q31_1, q31_2, q31_3, q31_4, q31_5, q31_6, q31_7, q31_8, q31_9, q31_10, q31_14)
+
+
+
+#Base lapop dimensão liberal fundamentalista
+
+blapop <- lapop %>% select(e5, e17a, e17b, d5, d6, d5newa, d7a, d5newb, d7b, comcon3xa, comcon3xb, comcon3xc, vb50, vb51, vb52, vb58, vb58exp, w14a, dvw1, dvw2, gidd1, gidd2)
+
+
+
+
+```
+
+
+**Seleção de variáveis utilizadas como *issue positions* da dimensão liberal/fundamentalista**
+```{r, message=FALSE, warning=FALSE, echo = FALSE, fig.cap= 'Tabela criada pelas autoras. '}
+df <- rio::import(here::here("dados/variaveis.xlsx"))
+library(kableExtra)
+df %>% select(base,codigo,pergunta,escala) %>% kable("latex", booktabs = TRUE) %>%
+  kable_styling(latex_options = c("striped", "scale_down")) %>% column_spec(1, width ="10em") %>% 
+  column_spec(2, width = "10em")
+```
+
+
+```{r Comparação entre variáveis,include=FALSE, message=FALSE, warning=FALSE, echo = FALSE}
+#Importando a tabela com raw data feita no EXcel 
+df <- rio::import(here::here("dados/variaveis.xlsx"))
+
+#Agrupando 98 e 97 em Nas
+eseb <- eseb %>%
+  mutate(across(where(is.numeric), ~na_if(.x, 97))) %>%
+  mutate(across(where(is.numeric), ~na_if(.x, 98)))
+
+ calc_ci <- function(count, conf.level = 0.95) {
+  # Erro padrão da contagem (supondo uma distribuição normal)
+  se <- sqrt(count)
+  
+  # Z-score para o nível de confiança
+  z <- janitor::round_half_up(qnorm((1 + conf.level) / 2), 2)
+  
+  # Intervalo de confiança
+  ci_lower <- count - z * se
+  ci_upper <- count + z * se
+  
+  return(c(ci_lower, ci_upper))
+}
+
+
+
+barplots <- function(df, var) {
+  var <- enquo(var)  # Captura a expressão não avaliada de var
+  var_name <- quo_name(var)  # Extrai o nome da variável como string
+  df_name <- toupper(deparse(substitute(df)))  # Extrai o nome do dataframe como string
+  
+  df |> 
+    group_by(!!var) |> #Subtitui o encapsulamento
+    summarise(count = sum(peso)) |> 
+    mutate(percent = count / sum(count)*100) |> 
+    mutate(count = janitor::round_half_up(count, 0)) -> df2 # Atalho para ativarmos o peso. Em vez de usar svydesign, usamos isso.
+    
+df2 <- df2 %>%
+    rowwise() %>%
+    mutate(
+      ci = list(calc_ci(count)),
+      ci_lower = ci[[1]],
+      ci_upper = ci[[2]]
+    )
+  
+  max_y <- max(df2$count) + 500 #subir eixo y 
+  
+  ggplot(df2, aes(x = as.character(!!var), y = count)) + 
+    geom_col() +
+    geom_text(aes(label = count), vjust = -1.5, size = 3) +
+    geom_errorbar(aes(ymin = ci_lower, ymax = ci_upper), width = 0.2) +
+    labs(title = paste(df_name, var_name),
+         x = "",
+         y = "") +
+    scale_y_continuous(limits = c(0, max_y)) + 
+    theme_minimal() +
+    theme(plot.title = element_text(size = 12))
+}
+
+
+#Criar uma função para aplicar. barplots é o nome da função, o nome da base (df) e o nome da variável (var1) são as entradas da função
+
+eseb <- eseb %>% rename(casamento=q31_2 ,
+                          adoção=q31_3 ,
+                     aborto=q31_7 )
+
+lapop  <- lapop %>% rename(casamento= d6 ,
+                          adoção= d7b ,
+                    aborto=w14a)
+
+```
+
+
+**Comparação entre as variáveis do ESEB e do LAPOP**
+
+Foram utilizadas variáveis de questões similares nas bases ESEB e LAPOP, sendo: 
+1. Casamento homoafetivo 
+2. Adoção por casais de minorias de gênero
+3. Aborto
+
+```{r Gráficos, include = TRUE, message=FALSE, warning=FALSE, echo = FALSE, fig.width=8, fig.height=6, fig.align= 'center', fig.cap= 'FONTE: bases ESEB e LAPOP, 2023. Foi ultizada a função barplots do pacote dplyr e o pacote patchwork do R '}
+
+
+library(patchwork)
+plot1 <- barplots(eseb,casamento)  
+plot2 <- barplots(lapop,casamento)
+plot2 <- plot2 + scale_x_discrete(limits = c(as.character(1:10),NA))
+#plot1+plot2
+
+
+plot3 <- barplots(eseb, adoção)
+plot4 <- barplots(lapop, adoção)
+plot4 <- plot4 + scale_x_discrete(limits = c(as.character(1:10),NA))
+#plot3+plot4
+
+
+plot5 <- barplots(eseb, aborto)
+plot6 <- barplots(lapop, aborto)
+plot6 <- plot6 + scale_x_discrete(limits = c(as.character(1:10),NA))
+#plot5+plot6 
+
+#plot dos graficos juntos 
+pacman::p_load(patchwork)
+
+(plot1 | plot2) / (plot3 | plot4) / (plot5 | plot6)
+
+```
+
+
+**Análise comparativa dos gráficos**
+
+Em relação ao nível de aprovação para o casamento homoafetivo os respondentes de Eseb se comportam de forma similar ao caso da adoção, tendo um levo aumento no número de discordantes.Os respondentes de LAPOP parecem ter opinião maior sobre este assunto, uma vez que o número de NAs que no caso da adoção é 791 cai para 45. Os respondentes se concentram nos níveis de aprovação. 
+
+Em relação às respostas sobre a adoção por casais de minorias de gênero a base LAPOP mostra uma dispersão maior e uma quantidade significativa de respostas NA, sendo o total de NAs maior que o total de respostas para os pontos da escala (711 respostas). A ESEB tem mais respostas ausentes e 
+LAPOP apresenta uma distribuição mais polarizada com muitas aprovações. A tendência positiva é mais clara na LAPOP. 
+
+A posição é favorável à adoção de crianças por casais de minorias de gênero. Os respondentes de Eseb não demonstram grande discrepância em relação aos que são a favor ou contra, apesar do número de pessoas a favor ser maior. Ambas as bases de dados indicam uma tendência positiva em relação à adoção, com a LAPOP mostrando uma aprovação mais acentuada.
+
+Nas duas variáveis acima, a diferença de escala de 1-10 no caso do LAPOP, comparada com a variável binária do ESEB, faz com que os respondentes transitem mais, refletindo diferentes graus de aprovação ou desaprovação, ou seja, a escala intermediária pode capturar ambivalência e incerteza. Alguém pode estar incerto sobre suas próprias crenças ou sentir que há contextos específicos que influenciam sua aprovação ou desaprovação.
+
+Os respondentes de ambas as bases se comportam de forma diferente em relação ao aborto, crescendo drasticamente os níveis de desaprovação no caso Eseb para a discriminalização do abroto. A pergunta aborda o aborto de forma geral, sem especificar circunstâncias. Isso tende a captar opiniões mais conservadoras, com a maioria sendo contra o aborto em qualquer situação.
+
+No caso do LAPOP os respondentes tendem a aprovação do aborto quando a saúde da mãe está em perigo. Este direcionamento da pergunta permite que mesmo aqueles que são geralmente contra o aborto possam aprová-lo em situações extremas, resultando em uma maior aceitação do tema, que justifica a presença de uma polarização maior nas respostas. 
+
+O número de NAs em Eseb apresenta queda em relação as outras questões, sobe significativamente o número de respostas que demonstram indecizão, ou seja, que responderam "depende". 
+
+ O número maior de valores ausentes na LAPOP pode sugerir que a questão específica ainda é delicada e sensível, levando algumas pessoas a não responderem.
+
+
+
+**Elaboração de gráfico de correlação entre as variáveis. Um gráfico para cada base de dados (ESEB e LAPOP)**
+
+
+```{r Gráficos de correlação, include=FALSE, message=FALSE, warning=FALSE, echo = FALSE, eval=FALSE, fig.width=8, fig.height=6, fig.align= 'center'}
+
+#Calcula a matriz de correlação de Spearman para beseb
+cor_beseb <- cor(beseb, use = "pairwise.complete.obs",
+                  method = c("spearman")) 
+# "pairwise.complete.obs" -> Se uma observação for NA para uma das variáveis do par, essa observação será ignorada para o cálculo da correlação desse par.
+#a correlação de Spearman mede a força e a direção de uma relação monotomica entre duas variáveis.  (relação de ordem com intensidades diferentes)
+
+cor_df <- reshape2::melt(cor_beseb) # Tranforma a matrix em um dataframe. A função anterior me gera um objeto de tipo "matrix"
+
+# Criar uma paleta de cores personalizada com dois midpoints
+colors <- c("#d73027", "#d6604d", "#e0e0e0", "#2166ac", "#053061")
+values <- scales::rescale(c(-1, -0.7, 0, 0.7, 1))
+
+
+ggplot(cor_df, aes(Var1, Var2, fill = value)) +
+  geom_tile() +
+  scale_fill_gradientn(colors = colors, values = values,
+                       name = "Correlation",
+                       limits = c(-1, 1)) +
+  theme_minimal() +
+  ggtitle("Heatmap da Matriz de Correlação com Dois Midpoints") +
+  xlab("Var1") +
+  ylab("Var2") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+cor_blapop <- cor(blapop, use = "pairwise.complete.obs",
+                  method = c("spearman"))
+# "pairwise.complete.obs" -> Se uma observação for NA para uma das variáveis do par, essa observação será ignorada para o cálculo da correlação desse par.
+#a correlação de Spearman mede a força e a direção de uma relação monotomica entre duas variáveis.  (relação de ordem com intensidades diferentes)
+
+cor_df2 <- reshape2::melt(cor_blapop) # Tranforma a matrix em um dataframe. A função anterior me gera um objeto de tipo "matrix"
+
+ggplot(cor_df2, aes(Var1, Var2, fill = value)) +
+  geom_tile() +
+  scale_fill_gradientn(colors = colors, values = values,
+                       name = "Correlation",
+                       limits = c(-1, 1)) +
+  theme_minimal() +
+  ggtitle("Heatmap da Matriz de Correlação com Dois Midpoints") +
+  xlab("Var1") +
+  ylab("Var2") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+**Análise Exploratória das corralações em Eseb**
+
+```{r Correlação, warning = FALSE, message = FALSE,echo = FALSE, fig.width=8, fig.height=6, fig.align= 'center', fig.cap= 'FONTE: base LAPOP, 2023.'}
+cor_df2 <- correlation::correlation(lapop, use = "pairwise.complete.obs",
+                  method = c("spearman"),select=c("dvw1", "dvw2","aborto", "adoção", "casamento"),rename = c("agressão.trabdoméstico","agressão.infidelidade","aborto", "adoção", "casamento"), redundant = TRUE)
+
+cor_df2 <- cor_df2 |> mutate(rho = format(rho, scientific =FALSE))|> mutate(rho = as.numeric(rho)) |> mutate(rho = janitor::round_half_up(rho,2))
+
+cor_df2 <- cor_df2 %>%
+  filter(Parameter1 <= Parameter2)
+
+ggplot(cor_df2, aes(x = Parameter1, y = Parameter2, fill = rho)) +
+  geom_tile() +
+  geom_text(aes(label = rho), color = "#000000", size = 2) +
+  scale_fill_gradient2(low = "#d73027", high = "#4575b4", mid = "white", midpoint = 0, limit = c(-1, 1)) +
+  theme_minimal() +
+  labs(x = "", y = "", fill = "Correlação") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+```
+
+```{r Correlação_2, warning = FALSE, message = FALSE,echo = FALSE, fig.width=8, fig.height=6, fig.align= 'center', fig.cap= ' FONTE: base LAPOP, 2023. '}
+
+cor_df3 <- correlation::correlation(lapop, use = "pairwise.complete.obs",
+                  method = c("spearman"),select=c("d5newa", "d5newb","d7a", "aborto", "adoção", "casamento"),rename = c("minsex", "mingenero", "casex","aborto", "adoção", "casamento"), redundant = TRUE)
+
+cor_df3 <- cor_df3 |> mutate(rho = format(rho, scientific =FALSE))|> mutate(rho = as.numeric(rho)) |> mutate(rho = janitor::round_half_up(rho,2))
+
+cor_df3 <- cor_df3 %>%
+  filter(Parameter1 <= Parameter2)
+
+ggplot(cor_df3, aes(x = Parameter1, y = Parameter2, fill = rho)) +
+  geom_tile() +
+  geom_text(aes(label = rho), color = "#000000", size = 2) +
+  scale_fill_gradient2(low = "#d73027", high = "#4575b4", mid = "white", midpoint = 0, limit = c(-1, 1)) +
+  theme_minimal() +
+  labs(x = "", y = "", fill = "Correlação") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+
+Utilizamos a Escala de Correlação de Spearman e consideramos a partir de 0,5 uma correlação significante.
+
+Correlações Fortes e Positivas:
+
+Observamos uma forte relação entre as variáveis de casamento homossexual e o direito de minorias de sexo visto já que estes se enquadram no grupo lgbt+
+Também, as variáveis casamento e e adoção são fortemente relacionadas visto que com a garantia do direito de casamento homossexual aumenta a probabilidade de ação entre esses casais. 
+
+Já a variável de legalização do aborto não apresenta forte relação com nenhuma outra, ela diz respeito apenas a quando a saúde da mulher está em risco, ou seja, não se relaciona com o direito de minorias.
+
+Muitas das correlações são fracas ou inexistentes (próximas de 0), representadas pelos tons cinza ou branco.
+
+**Análise Exploratória das corralações em Eseb**
+
+```{r, warning = FALSE, message = FALSE,echo = FALSE, fig.width=8, fig.height=6, fig.align= 'center',fig.cap='FONTE: Base ESEB, 2023.'}
+cor_df4 <- correlation::correlation(beseb, use = "pairwise.complete.obs", 
+                                    method = c("spearman"), rename = c("penal", "cas.homo", "adoc.homo","morte", "drogas", "arma", "aborto", "aborto.prisao", "cotas", "rezar", "esc.militar"), redundant = TRUE)
+
+cor_df4 <- cor_df4 |> mutate(rho = format(rho, scientific =FALSE))|> mutate(rho = as.numeric(rho)) |> mutate(rho = janitor::round_half_up(rho,2))
+
+cor_df4 <- cor_df4 %>%
+  filter(Parameter1 <= Parameter2)
+
+
+ggplot(cor_df4, aes(x = Parameter1, y = Parameter2, fill = rho)) +
+  geom_tile() +
+  geom_text(aes(label = rho), color = "#000000", size = 2) +
+  scale_fill_gradient2(low = "#d73027", high = "#4575b4", mid = "white", midpoint = 0, limit = c(-1, 1)) +
+  theme_minimal() +
+  labs(x = "", y = "", fill = "Correlação") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+
+Utilizamos a Escala de Correlação de Spearman e consideramos a partir de 0,5 uma correlação significante.
+
+Observamos que a correlação das variáveis de casamento homossexual e adoção, igual ao LAPOP, são fortes e positivas (0,63) visto que com a garantia do direito de casamento homossexual aumenta a probabilidade de adoção entre esses casais.
+
+A variável de ensinamento religioso em escolas públicas (ensinar as crianças a rezar e a acreditar em Deus ) e a de militarização das escolas públicas se relacionanm por possuírem um caráter moral conservador (0,29). 
+
+
+Já a descriminalização do uso de drogas e legalização do aborto apresentam relação fraca (0,27), por mais que entendemos ambas como questões de saúde pública, no debate político elas se englobam em diferentes espectros, tendo a discriminalização de drogas mais relação no debate de liberdades individuais. 
+
+
+A redução da maioridade penal só apresenta relação fraca ou levemente positiva.
+
+Naturalmente, todas as variáveis são perfeitamente correlacionadas consigo mesmas (correlação de 1), o que é mostrado como azul escuro na diagonal principal. Variáveis que mostram uma correlação forte positiva são representadas por quadrados próximos ao azul escuro.
