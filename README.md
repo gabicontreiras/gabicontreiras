@@ -10,7 +10,7 @@ Este espaço consolida os relatórios, códigos-fonte e dados desenvolvidos dura
 
 Navegue pelas pastas abaixo para acessar os arquivos e a análise de cada ciclo de pesquisa.
 
-### ciclo 2023-2024: Clivagens Ideológicas no Brasil
+### ciclo 2023-2024: Clivagens Políticas no Brasil
 
 Este projeto investiga a existência de clivagens ideológicas no eleitorado brasileiro. A análise testa a hipótese de congruência entre as posições dos eleitores e das elites políticas, com base no debate proposto por Borba et al. (2024). (https://revistas.usal.es/cuatro/index.php/1852-9003/article/download/31370/30119/120576)
 
@@ -18,7 +18,7 @@ Este projeto investiga a existência de clivagens ideológicas no eleitorado bra
 
 ---
 
-### ciclo 2022-2023: Análise Comparada de Elites e Eleitorado na América do Sul
+### ciclo 2022-2023: Clivagens Políticas na América Latina
 
 Este projeto foca na análise comparativa de dados de opinião pública e de elites políticas em quatro países sul-americanos, explorando a relação entre confiança institucional e voto.
 
