@@ -14,7 +14,6 @@ Navegue pelas pastas abaixo para acessar os arquivos e a análise de cada ciclo 
 
 Este projeto investiga a existência de clivagens ideológicas no eleitorado brasileiro. A análise testa a hipótese de congruência entre as posições dos eleitores e das elites políticas, com base no debate proposto por Borba et al. (2024). (https://revistas.usal.es/cuatro/index.php/1852-9003/article/download/31370/30119/120576)
 
-* **Objetivo Principal:** Verificar o grau de qualidade da representação política no Brasil através da análise de congruência ideológica.
 * **[>> Acessar Arquivos do Projeto 2023-2024 <<](./2023-2024/)**
 
 ---
