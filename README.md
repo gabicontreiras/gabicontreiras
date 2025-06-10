@@ -1,41 +1,43 @@
-# Projeto de Iniciação Científica: Análise de Clivagens Políticas no Brasil
+# Portfólio de Projetos de Iniciação Científica (PIBIC)
 
-## 📄 Resumo
+Bem-vindo(a) ao meu repositório de pesquisa!
 
-Este projeto de Iniciação Científica (2024) investiga a existência de clivagens ideológicas no Brasil, com foco na dimensão liberal-fundamentalista. A análise parte do debate proposto por Borba et al. (2024) e busca verificar o grau de congruência entre as posições de eleitores e das elites políticas em temas morais e econômicos.
-
-As análises foram realizadas utilizando dados do **Estudo Eleitoral Brasileiro (ESEB) de 2022** e do **LAPOP de 2023**.
+Este espaço consolida os relatórios, códigos-fonte e dados desenvolvidos durante meus ciclos no Programa de Iniciação Científica (PIBIC), com foco em análise de dados políticos e sociais na América Latina.
 
 ---
 
-## 📂 Estrutura do Repositório
+## 🚀 Projetos
 
-O projeto está organizado da seguinte forma:
+Navegue pelas pastas abaixo para acessar os arquivos e a análise de cada ciclo de pesquisa.
 
-- **/dados**: Contém os bancos de dados brutos utilizados na análise (`.sav`, `.xlsx`).
-- **relatorio_01.Rmd**: O código-fonte em R Markdown com toda a análise, desde o carregamento dos pacotes até a geração dos gráficos e conclusões.
-- **relatorio_01.html**: O relatório final em formato HTML, gerado a partir do `.Rmd`, para fácil visualização no navegador.
+### ciclo 2023-2024: Clivagens Ideológicas no Brasil
+
+Este projeto investiga a existência de clivagens ideológicas no eleitorado brasileiro. A análise testa a hipótese de congruência entre as posições dos eleitores e das elites políticas, com base no debate proposto por Borba et al. (2024). (https://revistas.usal.es/cuatro/index.php/1852-9003/article/download/31370/30119/120576)
+
+* **Objetivo Principal:** Verificar o grau de qualidade da representação política no Brasil através da análise de congruência ideológica.
+* **[>> Acessar Arquivos do Projeto 2023-2024 <<](./2023-2024/)**
 
 ---
 
-## 🛠️ Ferramentas Utilizadas
+### ciclo 2022-2023: Análise Comparada de Elites e Eleitorado na América do Sul
+
+Este projeto foca na análise comparativa de dados de opinião pública e de elites políticas em quatro países sul-americanos, explorando a relação entre confiança institucional e voto.
+
+* **[>> Acessar Arquivos do Projeto 2022-2023 <<](./2022-2023/)**
+
+---
+
+## 🛠️ Ferramentas e Tecnologias
+
+A maioria das análises foi desenvolvida utilizando o ecossistema R:
 
 * **Linguagem:** R
-* **Pacotes Principais:** `tidyverse`, `rio`, `janitor`, `ggplot2`, `patchwork`, `kableExtra`, `correlation`.
+* **IDE:** RStudio
+* **Pacotes Principais:** Tidyverse (ggplot2, dplyr), rio, janitor, patchwork.
+* **Reprodutibilidade:** `renv` para gerenciamento de pacotes e ambientes.
+* **Versionamento:** Git e GitHub.
 
----
-
-## 🚀 Como Executar o Projeto
-
-1.  Clone este repositório para a sua máquina local.
-2.  Certifique-se de que a pasta `dados` está no mesmo diretório dos scripts.
-3.  Abra o arquivo `relatorio_01.Rmd` no RStudio.
-4.  Instale os pacotes necessários (o script utiliza `pacman::p_load` para facilitar o processo).
-5.  Clique em **"Knit"** no RStudio para gerar o relatório em HTML e replicar a análise.
-
----
-
-## ✍️ Autor
+## ✍️ Autora
 
 * Gabriela D'Agostini Contreiras Rodrigues
 * gabidagos@hotmail.com
